@@ -131,17 +131,6 @@ def multi_train_model_and_forecast_2(model, data_X, data_Y, n_steps_in, n_steps_
             result.append(yhat[0][-1])
         return result
 
-        # if i == 1:
-        #     result.extend(yhat.ravel().tolist())
-        # else:
-        #     temp_values = [[] for _ in range(len(data_Y))]
-        #     for j in range(len(data_Y)):
-        #         temp_values[j].append(yhat[j][j])
-        #     for j in range(len(data_Y)):
-        #         result.append(sum(temp_values[j]) / len(temp_values[j]))
-        # return result
-
-
 def calculate_rmse(result, n_steps, data_Y):
     # 检查输入数组长度是否相等
 
