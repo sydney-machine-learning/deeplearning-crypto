@@ -13,7 +13,7 @@ from tensorflow.keras.optimizers import Adam
 import matplotlib.pyplot as plt
 
 
-def read_data(path, gold_path, dim_type, use_percentage):
+def read_data(path, gold_path=None, dim_type, use_percentage):
     '''
     get the raw dataset from path
 
