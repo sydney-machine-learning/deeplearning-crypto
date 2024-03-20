@@ -249,16 +249,16 @@ def main():
     print("start")
     # -----------------parameters-----------------
     model_hub = ['LSTM', 'BD LSTM', 'ED LSTM', 'CNN', 'Convolutional LSTM', 'Transformer']
-    file_path = r"C:\Users\Administrator\Desktop\新建文件夹\coin_Dogecoin.csv"
+    file_path = r"./coin_Bitcoin.csv"
     dim_type = 'Multi'  # 'Multi' or 'Open', 'High', 'Low', 'Close', 'Marketcap' (选取数据的维度或类型)
-    gold_path = r"C:\Users\Administrator\Desktop\新建文件夹\GoldPrice.xlsx"
+    gold_path = r"./GoldPrice.xlsx"
     use_percentage = 1  # 使用的数据百分比(=1就是全部数据)
 
     n_steps_in = 6  # 输入步长
     n_steps_out = 5 # 输出步长
 
     percentage = 0.7  # 训练集百分比
-    epochs = 100  # 迭代次数
+    epochs = 200  # 迭代次数
     rounds=2  # Number of exp
 
     # ---------------get data---------------
