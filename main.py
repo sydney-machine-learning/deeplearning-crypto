@@ -16,9 +16,6 @@ import matplotlib.pyplot as plt
 
 
 def read_data(path, dim_type, gold_path=None, use_percentage=1):
-    '''
-    读取数据(详细说明)
-    '''
     df = pd.read_csv(path)
     data_len = df.shape[0]
     data = None
@@ -70,7 +67,6 @@ def split_sequence(sequence, dim_type, n_steps_in, n_steps_out):
 
 def data_trasform(data, anti=False, scaler=None):
     '''
-    说明以及例子
     MinMax data and anti MinMax data
     :param data: the data source
     :param model: MinMax and anti MinMax
