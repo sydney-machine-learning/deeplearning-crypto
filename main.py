@@ -37,7 +37,7 @@ def read_data(path, dim_type, gold_path=None, use_percentage=1):
             # calc the gold series
             df['Gold'] = df['Gold'].apply(lambda x: gold['Price'][x==gold['Date']].values[0] if x in gold['Date'].values else np.nan)  
             # fillna using interpolating
-            df['Gold'] = df['Gold'].interpolate()
+            df['Gold'] = df['Gold'].interpolate(limit_direction="both")
 
             gold_data=df["Gold"].values.reshape((data_len, 1))
             data = np.hstack((close_data, open_data, high_data, low_data, marketcap_data,gold_data))
