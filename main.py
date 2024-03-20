@@ -249,7 +249,7 @@ def main():
     # -----------------parameters-----------------
     model_hub = ['LSTM', 'BD LSTM', 'ED LSTM', 'CNN', 'Convolutional LSTM', 'Transformer']
     file_path = r"./coin_Bitcoin.csv"
-    dim_type = 'Multi'  # 'Multi' or 'Open', 'High', 'Low', 'Close', 'Marketcap' (选取数据的维度或类型)
+    dim_type = 'Multi'  # 'Multi' or 'Open', 'High', 'Low', 'Close'(选取数据的维度或类型)
     gold_path = r"./GoldPrice.xlsx"
     use_percentage = 1  # 使用的数据百分比(=1就是全部数据)
 
