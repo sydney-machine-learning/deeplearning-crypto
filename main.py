@@ -13,66 +13,40 @@ from tensorflow.keras.optimizers import Adam
 import matplotlib.pyplot as plt
 
 
-def read_data(path, gold_path=None, dim_type, use_percentage):
+
+
+def read_data(path, dim_type, gold_path=None, use_percentage=1):
     '''
-    get the raw dataset from path
-
-    Parameters
-    ----------
-    path : str
-        the data file path.
-    glod_path : str
-        the gold price file path.
-    dim_type : str
-        the features we will used.
-    use_percentage : int
-        the ratio of the data we will used.
-
-    Returns
-    ----------
-    dataset : DataFrame
-        The raw dataset we initially read.
-
-    Examples
-    ----------
-    
-    read Cryptocurrency Historical Prices file and use single feature.
-
-    >>>read_data("c:/dataset/Cryptocurrency.csv","Close")
-
-
-    read Cryptocurrency Historical Prices file and Gold Price file and use Multi feature.
-
-    >>>read_data("c:/dataset/Cryptocurrency.csv","c:/dataset/goldprice.csv","Multi")
-
+    读取数据(详细说明)
     '''
     df = pd.read_csv(path)
     data_len = df.shape[0]
     data = None
-    if dim_type != 'Multi':
+    if dim_type!='Multi':
         data = df[dim_type].values.reshape((data_len, 1))
     else:
         # Multi
-        df["Date"] = pd.to_datetime(df["Date"], format='%Y-%m-%d %H:%M:%S').dt.strftime('%Y-%m-%d')
+        df["Date"]=pd.to_datetime(df["Date"], format='%Y-%m-%d %H:%M:%S').dt.strftime('%Y-%m-%d')
         open_data = df["Open"].values.reshape((data_len, 1))
         high_data = df["High"].values.reshape((data_len, 1))
         low_data = df["Low"].values.reshape((data_len, 1))
         close_data = df["Close"].values.reshape((data_len, 1))
+        marketcap_data = df["Marketcap"].values.reshape((data_len, 1))
         if gold_path is not None:
-            gold = pd.read_excel(gold_path)  # 读取金价
-            gold['Date'] = gold['Date'].dt.strftime('%Y-%m-%d')
-            df['Gold'] = df['Date']
+            gold=pd.read_excel(gold_path) # 读取金价
+            gold['Date']=gold['Date'].dt.strftime('%Y-%m-%d')
+            df['Gold']=df['Date']
+            
             # calc the gold series
-            df['Gold'] = df['Gold'].apply(
-                lambda x: gold['Price'][x == gold['Date']].values[0] if x in gold['Date'].values else np.nan)
+            df['Gold'] = df['Gold'].apply(lambda x: gold['Price'][x==gold['Date']].values[0] if x in gold['Date'].values else np.nan)  
             # fillna using interpolating
             df['Gold'] = df['Gold'].interpolate()
-            gold_data = df["Gold"].values.reshape((data_len, 1))
-            data = np.hstack((close_data, open_data, high_data, low_data, gold_data))
-        else:
-            data = np.hstack((close_data, open_data, high_data, low_data))
-    return data[0:int(np.floor(data_len * use_percentage))], np.floor(data_len * use_percentage)
 
+            gold_data=df["Gold"].values.reshape((data_len, 1))
+            data = np.hstack((close_data, open_data, high_data, low_data, marketcap_data,gold_data))
+        else:
+            data = np.hstack((close_data, open_data, high_data, low_data, marketcap_data))
+    return data[0:int(np.floor(data_len * use_percentage))], np.floor(data_len * use_percentage)
 
 def split_sequence(sequence, dim_type, n_steps_in, n_steps_out):
     X, y = list(), list()
@@ -94,28 +68,15 @@ def split_sequence(sequence, dim_type, n_steps_in, n_steps_out):
         y.append(seq_y)
     return np.array(X), np.array(y)
 
-
 def data_trasform(data, anti=False, scaler=None):
     '''
-    Normalize and anti-normalize the dataset
+    说明以及例子
+    MinMax data and anti MinMax data
+    :param data: the data source
+    :param model: MinMax and anti MinMax
+    :param scaler: anti MinMax scaler
+    :return: the transformed data
 
-
-    Parameters
-    ----------
-    data : numpy
-        the dataset.
-    anti : bool
-        Whether to normalize.
-    scaler : None
-        When performing denormalization, the normalized scaler is passed in.
-
-    Returns
-    ----------
-    dataset : numpy
-        return the normalized and anti-normalized dataset.
-
-    Examples
-    ----------
     '''
     if not anti:
         scalers = {}
@@ -138,17 +99,8 @@ def data_trasform(data, anti=False, scaler=None):
             column_data = data[:, i].reshape(-1, 1)
             restored_data[:, i] = scaler.inverse_transform(column_data).ravel()
         return restored_data
-
-
-def split_dataset(data, n):
-    if n == 1:
-        return [data]  # 如果n为1，直接返回整个数据集作为一个子集
-
-    subset_size = len(data) // n
-    subsets = [data[i * subset_size: (i + 1) * subset_size] for i in range(n - 1)]
-    subsets.append(data[(n - 1) * subset_size:])
-    return subsets
-
+        
+        
 
 def create_transformer_model(input_seq_length, output_seq_length, num_features, d_model, num_heads, ff_dim,
                              num_transformer_blocks, dropout_rate=0.1):
@@ -172,54 +124,37 @@ def create_transformer_model(input_seq_length, output_seq_length, num_features, 
     return model
 
 
-def create_model(model_type, n_features, n_steps_in, n_steps_out, nodes):
+def create_model(model_type, n_features, n_steps_in, n_steps_out):
     '''
-    get the defined model
-
-    Parameters
-    ----------
-    model_type : str
-        the model name
-    n_features: int
-        the dataset contains features
-    n_steps_in : int
-        the days used to predict
-    n_steps_out : int
-        the days predicted
-    nodes : int
-        xxx
-
-    Returns
-    ----------
-    model : Sequential
-        return the defined model
-
-    Examples
-    ----------
-
+        create model
+        :param model_type:  LSTM,BD LSTM(bidirectional LSTM),ED LSTM(Encoder-Decoder LSTM),CNN
+        :param n_features:
+        :param n_steps_in:
+        :param n_steps_out:
+        :return: the created model
     '''
     model = Sequential()
     adam_optimizer = Adam(learning_rate=0.001)
     if model_type == 'LSTM':
         # LSTM
-        model.add(LSTM(nodes, activation='sigmoid', return_sequences=True, input_shape=(n_steps_in, n_features)))
-        model.add(LSTM(nodes, activation='sigmoid'))
+        model.add(LSTM(100, activation='sigmoid', return_sequences=True, input_shape=(n_steps_in, n_features)))
+        model.add(LSTM(100, activation='sigmoid'))
         model.add(Dense(n_steps_out))
 
     elif model_type == 'BD LSTM':
         # bidirectional LSTM
-        model.add(Bidirectional(LSTM(nodes, activation='sigmoid'), input_shape=(n_steps_in, n_features)))
+        model.add(Bidirectional(LSTM(50, activation='sigmoid'), input_shape=(n_steps_in, n_features)))
         model.add(Dense(n_steps_out))
 
     elif model_type == 'ED LSTM':
         # Encoder-Decoder LSTM
         # Encoder
-        model.add(LSTM(nodes, activation='sigmoid', input_shape=(n_steps_in, n_features)))
+        model.add(LSTM(100, activation='sigmoid', input_shape=(n_steps_in, n_features)))
         # Connector
         model.add(RepeatVector(n_steps_out))
         # Decoder
-        model.add(LSTM(nodes, activation='sigmoid', return_sequences=True))
-        model.add(TimeDistributed(Dense(n_steps_out)))
+        model.add(LSTM(100, activation='sigmoid', return_sequences=True))
+        model.add(TimeDistributed(Dense(1)))
 
     elif model_type == 'CNN':
         # CNN
@@ -231,14 +166,14 @@ def create_model(model_type, n_features, n_steps_in, n_steps_out, nodes):
 
     elif model_type == 'Convolutional LSTM':
         # Convolutional LSTM
-        model.add(Conv1D(filters=nodes, kernel_size=2, activation='relu', input_shape=(n_steps_in, n_features)))
+        model.add(Conv1D(filters=20, kernel_size=2, activation='relu', input_shape=(n_steps_in, n_features)))
         model.add(LSTM(20, activation='relu', return_sequences=False))
         model.add(Dense(20, activation='relu'))
         model.add(Dense(n_steps_out))
 
     elif model_type == 'Transformer':
         model = create_transformer_model(n_steps_in, n_steps_out, n_features, d_model=64,
-                                         num_heads=4, ff_dim=64, num_transformer_blocks=4)
+                                         num_heads=12, ff_dim=64, num_transformer_blocks=3)
 
     else:
         print("no model")
@@ -247,41 +182,6 @@ def create_model(model_type, n_features, n_steps_in, n_steps_out, nodes):
 
 
 def train_and_forecast(model, n_features, dim_type, data_X, data_Y, n_steps_in, n_steps_out, ech):
-    '''
-    train and predict using the trained model
-
-    Parameters
-    ----------
-    model : Sequential
-        the defined model using Sequential() in keras.
-    n_features : int
-        the data contains freatures(1,4,5).
-    dim_type : int
-        the dimension of the data.
-    data_X : numpy
-        the train set.
-    data_Y : numpy
-        the test set.
-    n_steps_in : int
-        the days use to predict.
-    n_steps_out : int
-        the days predicted.
-    ech : int
-        the train epoches.
-
-
-    Returns
-    -------
-    fit_result : numpy
-        the train set prediction.
-    test_result : numpy
-        the test set prediction.
-
-    Examples
-    ----------
-
-    
-    '''
     # 训练模型
     # 隐藏输出
     sys.stdout = open(os.devnull, 'w')
@@ -316,58 +216,27 @@ def train_and_forecast(model, n_features, dim_type, data_X, data_Y, n_steps_in, 
     sys.stderr = sys.__stderr__
     return fit_result, test_result
 
-
-
 def eval_result(result, n_steps_out, target, mode):
     '''
-    Evaluate the model result,you can choose RMSE or MAPE;
-
-    Parameters
-    ----------
-    result : numpy
-        the model result.
-    n_steps_out : int
-        the days you predict.
-    target : numpy
-        the ground-true
-    mode : int
-        selected evaluation method (0：RMSE; 1：MAPE)
-
-
-    Returns
-    -------
-    evaluation : int
-        return the RMSE or MAPE result
-
-
-    Examples
-    --------
-    Using RMSE
-
-    >>> a=[1,2,3]
-    >>> b=[4,5,6]
-    >>> eval_result(a,1,b,0)
-    [3]
-
-    Using MAPE
-
-    >>> result=[1,2,3]
-    >>> ground_true=[4,5,6]
-    >>> eval_result(a,1,b,1);
-    [3]
-
+    evaluate the modl resule
+    :param result:the model result
+    :param n_steps_out:the days you predict
+    :param target:the ground-true
+    :param mode:the type of evaluation(you can choose 0：rmse,1：mape)
+    :return:the evaluation result
     '''
-    if mode == 0:
+    if mode==0:
         # return rmse result
         # 归一化
         result, _ = data_trasform(result)
         target, _ = data_trasform(target)
+        # 下面需要修改
         rmse = []
         for i in range(n_steps_out):
             rmse.append(np.sqrt(np.mean((result[:, i] - target[:, i]) ** 2)))
         return rmse
 
-    elif mode == 1:
+    elif mode==1:
         # return MAPE result
         result = result + 0.0000001
         target = target + 0.0000001
@@ -378,131 +247,109 @@ def eval_result(result, n_steps_out, target, mode):
     else:
         return None
 
+
+
 def main():
+    print("start")
     # -----------------parameters-----------------
-    # 'LSTM', 'BD LSTM', 'ED LSTM', 'CNN', 'Convolutional LSTM', 'Transformer'
     model_hub = ['LSTM', 'BD LSTM', 'ED LSTM', 'CNN', 'Convolutional LSTM', 'Transformer']
+    file_path = r"C:\Users\Administrator\Desktop\新建文件夹\coin_Dogecoin.csv"
+    dim_type = 'Multi'  # 'Multi' or 'Open', 'High', 'Low', 'Close', 'Marketcap' (选取数据的维度或类型)
+    gold_path = r"C:\Users\Administrator\Desktop\新建文件夹\GoldPrice.xlsx"
+    use_percentage = 1  # 使用的数据百分比(=1就是全部数据)
 
-    file_path = r"./coin_Bitcoin.csv"
-    dim_type = 'Close'  # 'Multi' or 'Close'
-    gold_path = r"./GoldPrice.xlsx"
-    use_percentage = 0.1  # 使用的数据百分比
+    n_steps_in = 6  # 输入步长
+    n_steps_out = 5 # 输出步长
 
-    n_steps_in = 5  # 输入步长
-    n_steps_out = 1  # 输出步长
-
-    n_splits = 2  # 必须大于等于2，将数据集划分为n个交叉验证子集（等于2时是静态分割(划分为2个数据集，此时在main中重新规定了训练测试的比例)）
-    percentage = 0.7  # 训练集百分比(在交叉验证(TimeSeriesSplit方法)里不适用)
-
-    nodes = 100  # 节点数
+    percentage = 0.7  # 训练集百分比
     epochs = 100  # 迭代次数
-
-    # 循环次数(重复次数，用来检验模型稳定性)
-    rounds = 1
+    rounds=2  # Number of exp
 
     # ---------------get data---------------
-    data, data_len = read_data(file_path, gold_path, dim_type, use_percentage)
 
-    # 定义 TimeSeriesSplit (时间序列的交叉验证)
-    tscv = TimeSeriesSplit(n_splits)
+    data, data_len = read_data(file_path, dim_type, gold_path, use_percentage)
+    # data, scalers = MinMaxdata(data)  # 归一化数据
+    data, scalers = data_trasform(data)
+    # split into train and test
+    train_set = data[0:int(np.floor(data_len * percentage))]  # 训练集
+    test_set = data[int(np.floor(data_len * percentage)):]  # 测试集
 
-    results_list = []
-    # 交叉验证
-    for fold, (train_index, test_index) in enumerate(tscv.split(data)):
-        Fold = fold + 1
-        # split into train and test
-        if n_splits == 2:
-            train_set = data[0:int(np.floor(data_len * percentage))]  # 训练集
-            test_set = data[int(np.floor(data_len * percentage)):]  # 测试集
-        else:
-            train_set, test_set = data[train_index], data[test_index]
+    # ----------保存、重新读取数据集
 
-        train_set, scalerstrain = data_trasform(train_set)
-        test_set, scalerstest = data_trasform(test_set)
+    # -------------------------
 
-        # define the used features
-        # used gold price or no used
-        n_features = len(train_set[0]) - 1 if len(train_set[0]) > 1 else 1
+    # define the used features
+    # used gold price or no used
+    n_features = len(train_set[0]) - 1 if len(train_set[0]) > 1 else 1
 
-        # ------------------循环每个model_hub中的model---------------
-        for model_type in model_hub:
-            # ------------------create model and prediction---------------
-            # model_type = 'Convolutional LSTM'  # Encoder-Decoder
+    # ------------------create model and prediction---------------
+    model_type = 'Transformer' # Encoder-Decoder
+    Model = create_model(model_type, n_features, n_steps_in, n_steps_out)
 
-            myModel = create_model(model_type, n_features, n_steps_in, n_steps_out, nodes)
-            for round in range(rounds): # Number of experiments
-                Round = round + 1
-                print(f"Fold {Fold}")
-                print(f"Training and evaluating model: {model_type}")
-                print(f"the {Round}-th exp, total:{rounds} rounds")
+    exp_result=pd.DataFrame({},columns=['Train MINMAX RMSE', 'Test MINMAX RMSE', 'Train MAPE', 'Test MAPE'])
+    
 
-                train_result, test_result = train_and_forecast(myModel, n_features, dim_type, train_set, test_set,
-                                                               n_steps_in,
-                                                               n_steps_out, epochs)
+    for round in range(rounds):
+        print(f"the {round}-th exp, total:{rounds} rounds")
 
-                # ----------------------evaluation--------------------
-                train_result = data_trasform(train_result, True, scalerstrain[0])  # 反归一化
-                test_result = data_trasform(test_result, True, scalerstest[0])  # 反归一化
+        
+        train_result, test_result = train_and_forecast(Model, n_features, dim_type, train_set, test_set, n_steps_in,
+                                                     n_steps_out, epochs)
 
-                _, train = split_sequence(train_set, dim_type, n_steps_in, n_steps_out)
-                train = data_trasform(train, True, scalerstrain[0])  # 反归一化
-                _, test = split_sequence(test_set, dim_type, n_steps_in, n_steps_out)
-                test = data_trasform(test, True, scalerstest[0])  # 反归一化
+        # ----------------------evaluation--------------------
+        train_result = data_trasform(train_result, True, scalers[0])  # 反归一化
+        test_result = data_trasform(test_result, True, scalers[0])  # 反归一化
 
-                # calc the rmse
-                train_minmax_rmse = eval_result(train_result, n_steps_out, train, 0)
-                test_minmax_rmse = eval_result(test_result, n_steps_out, test, 0)
-                print(f"{model_type} the {Fold}-th Fold Train MINMAX RMSE: {train_minmax_rmse}")
-                print(f"{model_type} the {Fold}-th Fold Test MINMAX RMSE: {test_minmax_rmse}")
+        _, train = split_sequence(train_set, dim_type, n_steps_in, n_steps_out)
+        train = data_trasform(train, True, scalers[0])  # 反归一化
+        _, test = split_sequence(test_set, dim_type, n_steps_in, n_steps_out)
+        test = data_trasform(test, True, scalers[0])  # 反归一化
+        
 
-                # calc the MAPE
-                train_MAPE = eval_result(train_result, n_steps_out, train, 1)
-                test_MAPE = eval_result(test_result, n_steps_out, test, 1)
-                print(f"{model_type} the {Fold}-th Fold Train MAPE: {train_MAPE}")
-                print(f"{model_type} the {Fold}-th Fold Test MAPE: {test_MAPE}")
+        # calc the rmse  
+        train_minmax_rmse = eval_result(train_result, n_steps_out, train, 0)
+        test_minmax_rmse = eval_result(test_result, n_steps_out, test, 0)
+        
+        print('Train MINMAX RMSE:', train_minmax_rmse)
+        print('Test MINMAX RMSE:', test_minmax_rmse)
 
-                # save result
-                result_row = {
-                    'Model': model_type,
-                    'Fold': Fold,
-                    'Round': Round,
-                    'Train MINMAX RMSE': train_minmax_rmse,
-                    'Test MINMAX RMSE': test_minmax_rmse,
-                    'Train MAPE': train_MAPE,
-                    'Test MAPE': test_MAPE
-                }
-                results_list.append(result_row)
+        # calc the MAPE
+        train_MAPE = eval_result(train_result, n_steps_out, train, 1)
+        test_MAPE = eval_result(test_result, n_steps_out, test, 1)
+        print('Train MAPE:', train_MAPE)
+        print('Test MAPE:', test_MAPE)
 
-            # 绘图
-            if n_steps_out == 1:
-                # 拟合结果
-                plt.figure(figsize=(15, 6))
-                plt.plot(train_result, label='Fit')
-                plt.plot(train, label='Actual')
-                plt.title(f'{model_type} Fit Results')
-                plt.xlabel('Time Steps')
-                plt.ylabel('Close Price')
-                plt.legend()
-                plt.show()
+        # save result
+        exp_result.loc[len(exp_result.index)] = [train_minmax_rmse,
+                                                  test_minmax_rmse,
+                                                  train_MAPE,
+                                                  test_MAPE]
+        exp_result.to_excel("exp_results.xlsx")
 
-                # 测试结果
-                plt.figure(figsize=(15, 6))
-                plt.plot(test_result, label='Predicted')
-                plt.plot(test, label='Actual')
-                plt.title(f'{model_type} Test Results')
-                plt.xlabel('Time Steps')
-                plt.ylabel('Close Price')
-                plt.legend()
-                plt.show()
-        # 如果n_splits等于2，则只执行一次循环（避免静态分割时的重复运行）
-        if n_splits == 2:
-            break
 
-    # 保存结果
-    all_exp_results = pd.DataFrame(results_list)
-    print(all_exp_results)
-    all_exp_results.to_excel("exp_results.xlsx")
+    # 绘图
+    if n_steps_out == 1:
+        # 拟合结果
+        plt.figure(figsize=(15, 6))
+        plt.plot(train_result, label='Train')
+        plt.plot(train, label='Actual')
+        plt.title(f'{model_type} Train Results')
+        plt.xlabel('Time Steps')
+        plt.ylabel('Close Price')
+        plt.legend()
+        plt.show()
+
+        # 测试结果
+        plt.figure(figsize=(15, 6))
+        plt.plot(test_result, label='Predicted')
+        plt.plot(test, label='Actual')
+        plt.title(f'{model_type} Test Results')
+        plt.xlabel('Time Steps')
+        plt.ylabel('Close Price')
+        plt.legend()
+        plt.show()
+
 
 if __name__ == '__main__':
-    main()
+    main()        
 
