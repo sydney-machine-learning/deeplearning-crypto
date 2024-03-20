@@ -28,7 +28,6 @@ def read_data(path, dim_type, gold_path=None, use_percentage=1):
         high_data = df["High"].values.reshape((data_len, 1))
         low_data = df["Low"].values.reshape((data_len, 1))
         close_data = df["Close"].values.reshape((data_len, 1))
-        marketcap_data = df["Marketcap"].values.reshape((data_len, 1))
         if gold_path is not None:
             gold=pd.read_excel(gold_path) # 读取金价
             gold['Date']=gold['Date'].dt.strftime('%Y-%m-%d')
@@ -40,9 +39,9 @@ def read_data(path, dim_type, gold_path=None, use_percentage=1):
             df['Gold'] = df['Gold'].interpolate(limit_direction="both")
 
             gold_data=df["Gold"].values.reshape((data_len, 1))
-            data = np.hstack((close_data, open_data, high_data, low_data, marketcap_data,gold_data))
+            data = np.hstack((close_data, open_data, high_data, low_data, gold_data))
         else:
-            data = np.hstack((close_data, open_data, high_data, low_data, marketcap_data))
+            data = np.hstack((close_data, open_data, high_data, low_data))
     return data[0:int(np.floor(data_len * use_percentage))], np.floor(data_len * use_percentage)
 
 def split_sequence(sequence, dim_type, n_steps_in, n_steps_out):
