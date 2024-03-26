@@ -184,7 +184,7 @@ def f1():
     读取原始数据，求置信区间并保存
     '''
     # 读取数据
-    data_eth=pd.read_excel(r"D:\pythonProject\doge_multivariate_mape.xlsx",index_col=0,header=0)
+    data_eth=pd.read_excel(r"./Doge_Multivariate_Mape.xlsx",index_col=0,header=0)
     # 由于读取excel之后数据发生了变化（list变成了str类型），需要转换成list类型
     for column in data_eth.columns.values:
         data_eth[column]=data_eth[column].apply(lambda x:np.array(literal_eval(x)))
@@ -212,7 +212,7 @@ def f2():
     读取置信区间数据，并绘制Fig-1、Fig-2
     '''
 
-    file_path=r"D:\pythonProject\doge_multivariate_mape_Confidence_interval.xlsx"
+    file_path=r"./doge_multivariate_mape_Confidence_interval.xlsx"
     
     # Fig-1
     data = pd.read_excel(file_path,index_col=0)
