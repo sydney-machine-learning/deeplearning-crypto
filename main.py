@@ -10,8 +10,10 @@ from tensorflow.keras.layers import LSTM, Bidirectional, Dense, Conv1D, Flatten,
     TimeDistributed, LayerNormalization, Dropout, MultiHeadAttention, Input
 from tensorflow.keras.optimizers import Adam
 import statsmodels.api as sm
+from pmdarima import auto_arima
 from scipy import stats
 from statsmodels.tsa.arima.model import ARIMA
+from statsmodels.tsa.stattools import adfuller
 import matplotlib.pyplot as plt
 
 def read_data(path, dim_type, gold_path=None, use_percentage=1):
@@ -77,25 +79,14 @@ def data_trasform(data, anti=False, scaler=None):
 
     '''
     if not anti:
-        # 归一化
-        # 创建一个空字典来存储每一列的 scaler
         scalers = {}
-        # 归一化数据的容器
         normalized_data = np.zeros_like(data)
-        # 循环每一列
         for i in range(data.shape[1]):  # data.shape[1] 是列的数量
-            # 为每一列创建一个新的 MinMaxScaler
             scaler = MinMaxScaler()
-            # 将列数据调整为正确的形状，即(-1, 1)
             column_data = data[:, i].reshape(-1, 1)
-            # 拟合并转换数据
             normalized_column = scaler.fit_transform(column_data)
-            # 将归一化的数据存回容器中
             normalized_data[:, i] = normalized_column.ravel()
-            # 存储scaler以便后续使用
             scalers[i] = scaler
-        # 现在 normalized_data 是完全归一化的数据
-        # scalers 字典包含每一列的 MinMaxScaler 实例
         return normalized_data, scalers
     else:
         # 反归一化
@@ -129,6 +120,14 @@ def create_transformer_model(input_seq_length, output_seq_length, num_features, 
     outputs = Dense(output_seq_length)(x[:, -1, :])  # We take the last step's output for forecasting
     model = Model(inputs, outputs)
     return model
+
+def perform_adf_test(series):
+    result = adfuller(series, autolag='AIC')
+    print('ADF Statistic: %f' % result[0])
+    print('p-value: %f' % result[1])
+    print('Critical Values:')
+    for key, value in result[4].items():
+        print('\t%s: %.3f' % (key, value))
 
 def create_model(model_type, n_features, n_steps_in, n_steps_out):
     '''
@@ -180,12 +179,12 @@ def create_model(model_type, n_features, n_steps_in, n_steps_out):
     elif model_type == 'Transformer':
         model = create_transformer_model(n_steps_in, n_steps_out, n_features, d_model=64,
                                          num_heads=12, ff_dim=64, num_transformer_blocks=3)
-        
+
     elif model_type == 'MLP':
         # 多层感知机 (MLP)
-        model.add(Dense(100, activation='relu', input_shape=(n_steps_in, n_features)))
+        model.add(Dense(60, activation='relu', input_shape=(n_steps_in, n_features)))
         model.add(Flatten())
-        model.add(Dense(100, activation='relu'))
+        model.add(Dense(60, activation='relu'))
         model.add(Dense(n_steps_out))
 
     elif model_type == 'ARIMA':
@@ -203,7 +202,7 @@ def create_model(model_type, n_features, n_steps_in, n_steps_out):
 
 
 def train_and_forecast(model, n_features, dim_type, data_X, data_Y, n_steps_in, n_steps_out, ech):
-    # 训练模型
+    训练模型
     # 隐藏输出
     sys.stdout = open(os.devnull, 'w')
     sys.stderr = open(os.devnull, 'w')
@@ -212,33 +211,29 @@ def train_and_forecast(model, n_features, dim_type, data_X, data_Y, n_steps_in, 
     # 对于多维数据，调整最后一个维度为特征数
     X = X.reshape((X.shape[0], X.shape[1], n_features))
 
-    # --------------------------------------------------------------
+#######################################################################################
     if model == 'ARIMA':
-        # 检查数据是否平稳
-        fig = plt.figure(figsize=(12, 8))
-        ax1 = fig.add_subplot(211)
-        fig = sm.graphics.tsa.plot_acf(data_X.squeeze(), lags=40, ax=ax1)
-        ax2 = fig.add_subplot(212)
-        fig = sm.graphics.tsa.plot_pacf(data_X, lags=40, ax=ax2)
-        # ARIMA 模型只接受单变量时间序列，这里假设 data_X 和 data_Y 是一维数组
-        order = (6, 1, 6)
+        data_diff = data_X[1:] - data_X[:-1]
+        perform_adf_test(data_diff)
+        order = (1,0,1)
         arma_model = ARIMA(data_X, order=order)
         model_fit = arma_model.fit()
         # 拟合结果
         fit_result = model_fit.fittedvalues
         # 使用模型进行滚动预测
-        history = list(data_X)
+        history = data_X
         test_result = []
         for t in range(len(data_Y)):
+            print(f'Predicting {t}th data')
             model = ARIMA(history, order=order)
             model_fit = model.fit()
             output = model_fit.forecast(n_steps_out)
             test_result.append(output)
-            history.append(data_Y[t])  # 更新历史数据
+            history = np.append(history, data_Y[t])  # 更新历史数据
         test_result = np.array(test_result)
         fit_result = fit_result.reshape(len(fit_result), 1)
         return fit_result, test_result
-    # --------------------------------------------------------------
+#######################################################################################
 
     # 训练模型
     model.fit(X, y, epochs=ech, batch_size=32, verbose=1)
@@ -303,51 +298,53 @@ def main():
     print("start")
     # -----------------parameters-----------------
     model_hub = ['LSTM', 'BD LSTM', 'ED LSTM', 'CNN', 'Convolutional LSTM', 'Transformer', 'MLP', 'ARIMA']
-    file_path = r"C:\Users\Administrator\Desktop\新建文件夹\coin_Bitcoin.csv"
+    file_path = r"./coin_Bitcoin.csv"
     dim_type = 'Close'  # 'Multi' or 'Open', 'High', 'Low', 'Close', 'Marketcap' (选取数据的维度或类型)
-    gold_path = r"C:\Users\Administrator\Desktop\新建文件夹\GoldPrice.xlsx"
+    gold_path = r"./GoldPrice.xlsx"
     use_percentage = 1  # 使用的数据百分比(=1就是全部数据)
-    
+
     n_steps_in = 6  # 输入步长
     n_steps_out = 5 # 输出步长
-    
+
     percentage = 0.7  # 训练集百分比
     epochs = 100  # 迭代次数
-    rounds = 1  # Number of exp
-    
+    rounds = 30  # Number of exp
+
     # ---------------get data---------------
-    
+
     data, data_len = read_data(file_path, dim_type, gold_path, use_percentage)
     # data, scalers = MinMaxdata(data)  # 归一化数据
     data, scalers = data_trasform(data)
     # split into train and test
     train_set = data[0:int(np.floor(data_len * percentage))]  # 训练集
     test_set = data[int(np.floor(data_len * percentage)):]  # 测试集
-    
+
+    # ----------保存、重新读取数据集
+
     # -------------------------
-    
+
     # define the used features
     # used gold price or no used
     n_features = len(train_set[0]) - 1 if len(train_set[0]) > 1 else 1
-    
+
     # ------------------create model and prediction---------------
     model_type = 'ARIMA' # Encoder-Decoder
     Model = create_model(model_type, n_features, n_steps_in, n_steps_out)
-    
+
     exp_result=pd.DataFrame({},columns=['Train MINMAX RMSE', 'Test MINMAX RMSE', 'Train MAPE', 'Test MAPE'])
-    
-    
+
+
     for round in range(rounds):
         print(f"the {round}-th exp, total:{rounds} rounds")
-    
+
         
         train_result, test_result = train_and_forecast(Model, n_features, dim_type, train_set, test_set, n_steps_in,
                                                         n_steps_out, epochs)
-    
+
         # ----------------------evaluation--------------------
         train_result = data_trasform(train_result, True, scalers[0])  # 反归一化
         test_result = data_trasform(test_result, True, scalers[0])  # 反归一化
-    
+
         _, train = split_sequence(train_set, dim_type, n_steps_in, n_steps_out)
         train = data_trasform(train, True, scalers[0])  # 反归一化
         _, test = split_sequence(test_set, dim_type, n_steps_in, n_steps_out)
@@ -368,7 +365,7 @@ def main():
         
         print('Train MINMAX RMSE:', train_minmax_rmse)
         print('Test MINMAX RMSE:', test_minmax_rmse)
-    
+
         # calc the MAPE
         if Model == 'ARIMA':
             n_steps_out = 1
@@ -378,15 +375,15 @@ def main():
         test_MAPE = eval_result(test_result, n_steps_out, test, 1)
         print('Train MAPE:', train_MAPE)
         print('Test MAPE:', test_MAPE)
-    
+
         # save result
         exp_result.loc[len(exp_result.index)] = [train_minmax_rmse,
                                                     test_minmax_rmse,
                                                     train_MAPE,
                                                     test_MAPE]
-        exp_result.to_excel("exp_results.xlsx")
-    
-    
+        exp_result.to_excel("exp_result.xlsx")
+
+
     # 绘图
     if n_steps_out == 1:
         # 拟合结果
@@ -398,7 +395,7 @@ def main():
         plt.ylabel('Close Price')
         plt.legend()
         plt.show()
-    
+
         # 测试结果
         plt.figure(figsize=(15, 6))
         plt.plot(test_result, label='Predicted')
