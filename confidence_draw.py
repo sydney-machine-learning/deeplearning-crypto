@@ -223,8 +223,5 @@ if __name__ == '__main__':
     draw.get_confidence_interval_mean_error()
 
 
-    draw=Draw(file_path)
-    draw.start()
-
 
 
