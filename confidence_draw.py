@@ -14,6 +14,7 @@ bar_colors = ['#845EC2', '#4B4453', '#B0A8B9', '#C34A36', '#FF8066', '#4E8397','
 class Draw:
     __file_path=None
     __save_name=None
+    __save_name1=None
     __fig1_name=None
     __fig2_name=None
     __raw_data=None
@@ -41,6 +42,7 @@ class Draw:
 
     def __get_names(self):
         self.__save_name = r'./results/'+self.__file_path.stem+"_Confidence_Interval.csv"
+        self.__save_name1 = r'./results/' + self.__file_path.stem + "_Confidence_Interval_Mean_Error.csv"
         self.__fig1_name= r'./results/'+' '.join(self.__file_path.stem.split("_"))+" Fig1.png"
         self.__fig2_name= r'./results/'+' '.join(self.__file_path.stem.split("_"))+" Fig2.png"
 
@@ -54,11 +56,10 @@ class Draw:
         self.__columns = self.__raw_data.columns.values.tolist()
         self.__steps = self.__raw_data.values[0,0].size
 
-
-
     def __get_confidence_interval(self):
         '''
         计算置信区间并保存
+        保存实行（lower,upper）
         :return:
         '''
         print("计算置信区间")
@@ -72,12 +73,10 @@ class Draw:
             matrix=np.empty([len(model.values), len(model.values[0])])
             for row in range(len(model.values)):
                 matrix[row]=model.values[row]
-
             cells=[]
             for step in range(self.__steps):
                 mean=np.mean(matrix[:,step])
                 std=np.std(matrix[:,step])
-
                 # 计算置信区间
                 z=stats.norm.ppf((1+self.confidence)/2)
                 margin_of_error= z*(std/np.sqrt(len(model.values)))
@@ -87,6 +86,35 @@ class Draw:
             self.__conf_data[column]=cells
         # 保存置信区间结果
         self.__conf_data.to_csv(self.__save_name)
+
+    def get_confidence_interval_mean_error(self):
+        '''
+        计算置信区间并保存
+        返回形式（mean,error）
+        :return:
+        '''
+        print("计算置信区间(mean,error)")
+        index = []
+        for step in range(self.__steps):
+            index.append("step-" + str(step + 1))
+        conf_data = pd.DataFrame({}, columns=self.__columns, index=index)
+        for column in self.__columns:
+            model=self.__raw_data[column]
+            # 将当前列转为二维矩阵形式
+            matrix=np.empty([len(model.values), len(model.values[0])])
+            for row in range(len(model.values)):
+                matrix[row]=model.values[row]
+            cells=[]
+            for step in range(self.__steps):
+                mean=np.mean(matrix[:,step])
+                std=np.std(matrix[:,step])
+                # 计算置信区间
+                z=stats.norm.ppf((1+self.confidence)/2)
+                margin_of_error= z*(std/np.sqrt(len(model.values)))
+                cells.append([round(mean,6), round(margin_of_error,6)])
+            conf_data[column]=cells
+        # 保存置信区间结果
+        conf_data.to_csv(self.__save_name1)
 
     def __get_model_name(self, column):
         # 从列名中提取模型名
@@ -189,7 +217,12 @@ class Draw:
 
 
 if __name__ == '__main__':
-    file_path=r'.\Bitcoin_Multivariate_Mape.xlsx'
+    file_path=r'./Bitcoin_Multivariate_Mape.xlsx'
+    draw=Draw(file_path)
+    draw.start()
+    draw.get_confidence_interval_mean_error()
+
+
     draw=Draw(file_path)
     draw.start()
 
