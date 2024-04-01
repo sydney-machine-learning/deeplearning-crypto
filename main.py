@@ -13,7 +13,6 @@ import statsmodels.api as sm
 from pmdarima import auto_arima
 from scipy import stats
 from statsmodels.tsa.arima.model import ARIMA
-from statsmodels.tsa.stattools import adfuller
 import matplotlib.pyplot as plt
 
 def read_data(path, dim_type, gold_path=None, use_percentage=1):
@@ -79,14 +78,25 @@ def data_trasform(data, anti=False, scaler=None):
 
     '''
     if not anti:
+        # 归一化
+        # 创建一个空字典来存储每一列的 scaler
         scalers = {}
+        # 归一化数据的容器
         normalized_data = np.zeros_like(data)
+        # 循环每一列
         for i in range(data.shape[1]):  # data.shape[1] 是列的数量
+            # 为每一列创建一个新的 MinMaxScaler
             scaler = MinMaxScaler()
+            # 将列数据调整为正确的形状，即(-1, 1)
             column_data = data[:, i].reshape(-1, 1)
+            # 拟合并转换数据
             normalized_column = scaler.fit_transform(column_data)
+            # 将归一化的数据存回容器中
             normalized_data[:, i] = normalized_column.ravel()
+            # 存储scaler以便后续使用
             scalers[i] = scaler
+        # 现在 normalized_data 是完全归一化的数据
+        # scalers 字典包含每一列的 MinMaxScaler 实例
         return normalized_data, scalers
     else:
         # 反归一化
@@ -120,14 +130,6 @@ def create_transformer_model(input_seq_length, output_seq_length, num_features, 
     outputs = Dense(output_seq_length)(x[:, -1, :])  # We take the last step's output for forecasting
     model = Model(inputs, outputs)
     return model
-
-def perform_adf_test(series):
-    result = adfuller(series, autolag='AIC')
-    print('ADF Statistic: %f' % result[0])
-    print('p-value: %f' % result[1])
-    print('Critical Values:')
-    for key, value in result[4].items():
-        print('\t%s: %.3f' % (key, value))
 
 def create_model(model_type, n_features, n_steps_in, n_steps_out):
     '''
@@ -171,7 +173,7 @@ def create_model(model_type, n_features, n_steps_in, n_steps_out):
 
     elif model_type == 'Convolutional LSTM':
         # Convolutional LSTM
-        model.add(Conv1D(filters=20, kernel_size=2, activation='relu', input_shape=(n_steps_in, n_features)))
+        model.add(Conv1D(filters=64, kernel_size=2, activation='relu', input_shape=(n_steps_in, n_features)))
         model.add(LSTM(20, activation='relu', return_sequences=False))
         model.add(Dense(20, activation='relu'))
         model.add(Dense(n_steps_out))
@@ -182,9 +184,9 @@ def create_model(model_type, n_features, n_steps_in, n_steps_out):
 
     elif model_type == 'MLP':
         # 多层感知机 (MLP)
-        model.add(Dense(60, activation='relu', input_shape=(n_steps_in, n_features)))
+        model.add(Dense(20, activation='relu', input_shape=(n_steps_in, n_features)))
         model.add(Flatten())
-        model.add(Dense(60, activation='relu'))
+        model.add(Dense(20, activation='relu'))
         model.add(Dense(n_steps_out))
 
     elif model_type == 'ARIMA':
@@ -202,7 +204,7 @@ def create_model(model_type, n_features, n_steps_in, n_steps_out):
 
 
 def train_and_forecast(model, n_features, dim_type, data_X, data_Y, n_steps_in, n_steps_out, ech):
-    训练模型
+    # 训练模型
     # 隐藏输出
     sys.stdout = open(os.devnull, 'w')
     sys.stderr = open(os.devnull, 'w')
@@ -213,23 +215,35 @@ def train_and_forecast(model, n_features, dim_type, data_X, data_Y, n_steps_in, 
 
 #######################################################################################
     if model == 'ARIMA':
-        data_diff = data_X[1:] - data_X[:-1]
-        perform_adf_test(data_diff)
-        order = (1,0,1)
+        # 检查数据是否平稳
+        fig = plt.figure(figsize=(12, 8))
+        ax1 = fig.add_subplot(211)
+        fig = sm.graphics.tsa.plot_acf(data_X.squeeze(), lags=40, ax=ax1)
+        ax2 = fig.add_subplot(212)
+        fig = sm.graphics.tsa.plot_pacf(data_X, lags=40, ax=ax2)
+        
+        # # 自动确定 ARIMA 模型的参数
+        # auto_model = auto_arima(data_X, seasonal=False, trace=True, error_action='ignore', suppress_warnings=True)
+        # # 输出最佳 ARIMA 模型的参数
+        # print(auto_model.summary())
+        
+        # 使用最佳参数拟合 ARIMA 模型
+        # ARIMA 模型只接受单变量时间序列，这里假设 data_X 和 data_Y 是一维数组
+        # order = auto_model.order
+        order = (6,1,6)
         arma_model = ARIMA(data_X, order=order)
         model_fit = arma_model.fit()
         # 拟合结果
         fit_result = model_fit.fittedvalues
         # 使用模型进行滚动预测
-        history = data_X
+        history = list(data_X)
         test_result = []
         for t in range(len(data_Y)):
-            print(f'Predicting {t}th data')
             model = ARIMA(history, order=order)
             model_fit = model.fit()
             output = model_fit.forecast(n_steps_out)
             test_result.append(output)
-            history = np.append(history, data_Y[t])  # 更新历史数据
+            history.append(data_Y[t])  # 更新历史数据
         test_result = np.array(test_result)
         fit_result = fit_result.reshape(len(fit_result), 1)
         return fit_result, test_result
@@ -328,16 +342,16 @@ def main():
     n_features = len(train_set[0]) - 1 if len(train_set[0]) > 1 else 1
 
     # ------------------create model and prediction---------------
-    model_type = 'ARIMA' # Encoder-Decoder
-    Model = create_model(model_type, n_features, n_steps_in, n_steps_out)
+    model_type = 'Convolutional LSTM' # Encoder-Decoder
+
 
     exp_result=pd.DataFrame({},columns=['Train MINMAX RMSE', 'Test MINMAX RMSE', 'Train MAPE', 'Test MAPE'])
 
 
     for round in range(rounds):
         print(f"the {round}-th exp, total:{rounds} rounds")
+        Model = create_model(model_type, n_features, n_steps_in, n_steps_out)
 
-        
         train_result, test_result = train_and_forecast(Model, n_features, dim_type, train_set, test_set, n_steps_in,
                                                         n_steps_out, epochs)
 
@@ -349,7 +363,7 @@ def main():
         train = data_trasform(train, True, scalers[0])  # 反归一化
         _, test = split_sequence(test_set, dim_type, n_steps_in, n_steps_out)
         test = data_trasform(test, True, scalers[0])  # 反归一化
-        
+
         # calc the rmse
         per_n_steps_out = n_steps_out
         if Model == 'ARIMA':
@@ -357,12 +371,12 @@ def main():
             train = data_trasform(train, True, scalers[0])
             test_result = test_result[0:len(test), :]
             n_steps_out = 1
-        
+
         train_minmax_rmse = eval_result(train_result, n_steps_out, train, 0)
         if Model == 'ARIMA':
             n_steps_out = per_n_steps_out
         test_minmax_rmse = eval_result(test_result, n_steps_out, test, 0)
-        
+
         print('Train MINMAX RMSE:', train_minmax_rmse)
         print('Test MINMAX RMSE:', test_minmax_rmse)
 
@@ -381,7 +395,7 @@ def main():
                                                     test_minmax_rmse,
                                                     train_MAPE,
                                                     test_MAPE]
-        exp_result.to_excel("exp_result.xlsx")
+        exp_result.to_excel("results.xlsx")
 
 
     # 绘图
