@@ -2,7 +2,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 # 读取数据
-df = pd.read_csv(r'D:\pythonProject1\波动性分析数据\波动性分析数据\DOGE 2015.9-2024.4 月度数据.csv', parse_dates=['Date'], index_col='Date')
+df = pd.read_csv(r'./DOGE 2015.9-2024.4 月度数据.csv', parse_dates=['Date'], index_col='Date')
 
 # 设置字体大小
 plt.rcParams.update({'font.size': 10})
