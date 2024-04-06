@@ -170,7 +170,7 @@ def main():
         model_path.mkdir()
 
     # 读取数据
-    file_path = r"D:\pythonProject1\BTC-USD2019.csv"
+    file_path = r"./BTC-USD2019.csv"
     features = ['Close']
     data = read_data(file_path, features)
 
