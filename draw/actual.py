@@ -2,7 +2,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 
-df = pd.read_csv(r'D:\pythonProject1\BTC-USD2019.csv', parse_dates=['Date'], index_col='Date')
+df = pd.read_csv(r'./BTC-USD2019.csv', parse_dates=['Date'], index_col='Date')
 # 设置字体大小
 plt.rcParams.update({'font.size': 8})
 
