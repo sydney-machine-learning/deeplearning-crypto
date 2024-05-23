@@ -144,7 +144,7 @@ In the `draw.py` module, we can set the bar_colors parameter to custom display c
 
 ### Select experiment
 We put the codes for experiments 1 and 2 into different python files. Experiments 1 and 2 used different datasets respectively. 
-If you want to do experiment 1, please choose `Main.py`, for experiment 2, please choose ‘Main2.py’.
+If you want to do experiment 1, please choose `main.py`, for experiment 2, please choose `Main2.py`.
 
 
 
